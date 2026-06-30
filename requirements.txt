@@ -1,0 +1,3 @@
+# Streamlit 프론트엔드 의존성 (GPU/torch 불필요 — 경량)
+streamlit>=1.36
+requests>=2.31
