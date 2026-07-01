@@ -143,7 +143,7 @@ up = st.file_uploader(
     "영상 파일",
     type=["mp4", "avi", "mov", "mkv", "webm", "m4v", "mpg", "mpeg"],
 )
-if up is not None and st.button("▶️ 처리 시작", type="primary", use_container_width=True, disabled=not healthy):
+if up is not None and st.button("▶️ 처리 시작", type="primary", width="stretch", disabled=not healthy):
     with st.spinner(f"업로드 중: {up.name} …"):
         try:
             files = {"file": (up.name, up.getvalue(), up.type or "video/mp4")}
@@ -189,7 +189,7 @@ while True:
 
 if status == "error":
     st.error(f"처리 오류: {data.get('error')}")
-    if st.button("🆕 다시 시도", use_container_width=True):
+    if st.button("🆕 다시 시도", width="stretch"):
         st.session_state.pop("batch_job_id", None)
         st.session_state.pop("batch_video", None)
         st.rerun()
@@ -223,11 +223,11 @@ if video_bytes:
         file_name=f"processed_{job_id}.mp4",
         mime="video/mp4",
         type="primary",
-        use_container_width=True,
+        width="stretch",
     )
     st.caption("영상이 재생되지 않으면 코덱 문제일 수 있습니다 → 다운로드해서 재생하세요.")
 
-if st.button("🆕 새 영상 처리", use_container_width=True):
+if st.button("🆕 새 영상 처리", width="stretch"):
     st.session_state.pop("batch_job_id", None)
     st.session_state.pop("batch_video", None)
     st.rerun()
