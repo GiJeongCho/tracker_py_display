@@ -123,6 +123,8 @@ _CTL_KEYS = [
     "ctl_ioumerge", "ctl_lbllock", "ctl_lblcnt",
     "ctl_fogmode", "ctl_fogband",
     "ctl_darkon", "ctl_darkgain",
+    "ctl_fogon", "ctl_st2", "ctl_st3",
+    "ctl_qalgo", "ctl_ealgo",
 ]
 
 
@@ -135,9 +137,12 @@ def _controls_panel(backend: str) -> None:
         st.session_state.init_dcfg = _get_json(backend, "/api/detector/config") or {}
     if "init_fcfg" not in st.session_state:
         st.session_state.init_fcfg = _get_json(backend, "/api/preprocess/stage1") or {}
+    if "init_algos" not in st.session_state:
+        st.session_state.init_algos = _get_json(backend, "/api/preprocess/algorithms") or {}
     t = st.session_state.init_tcfg
     d = st.session_state.init_dcfg
     f = st.session_state.init_fcfg
+    a = st.session_state.init_algos
 
     with st.expander("🎛️ 실시간 파라미터 조정 (적용 시 재시작 없이 즉시 반영)", expanded=True):
         st.caption(
@@ -272,6 +277,59 @@ def _controls_panel(backend: str) -> None:
                 ),
             )
 
+        st.markdown("**전처리 효과 사용/미사용 (체크 = 사용)**")
+        st.caption(
+            "각 전처리 효과를 개별로 켜고 끕니다. 끄면 해당 보정을 건너뛰고 원본(이전 단계)을 그대로 씁니다. "
+            "안개 제거·저조도(야간) 보정은 아래 mode/밝기 설정과 함께 동작합니다."
+        )
+        pc = st.columns(4)
+        fog_enabled = pc[0].checkbox(
+            "🌫️ 안개 제거", value=bool(f.get("fog_enabled", True)), key="ctl_fogon",
+            help="안개 제거(Retinex)를 적용할지. 끄면 auto/fog 모드여도 안개 장면을 원본 그대로 둡니다.",
+        )
+        dark_enabled = pc[1].checkbox(
+            "🌙 저조도/야간", value=bool(f.get("dark_enabled", True)), key="ctl_darkon",
+            help="어두운/야간 장면 저조도 보정(Zero-DCE++). 끄면 어두운 장면도 밝히지 않고 원본 유지.",
+        )
+        stage2_enabled = pc[2].checkbox(
+            "🎚️ 화질향상", value=bool(f.get("stage2_enabled", True)), key="ctl_st2",
+            help="Stage2 화질향상(아래에서 CLAHE/Retinex 선택). 시작 시 ON. 끄면 건너뜁니다.",
+        )
+        stage3_enabled = pc[3].checkbox(
+            "🔎 표적강조", value=bool(f.get("stage3_enabled", False)), key="ctl_st3",
+            help="Stage3 표적강조(아래에서 Wavelet/DoG/Unsharp 선택). 시작 시 OFF. 켜면 적용됩니다.",
+        )
+
+        # ── 전처리 알고리즘 선택 (화질향상 2종 / 표적강조 3종) ──────────────
+        st.markdown("**전처리 알고리즘 선택 (화질향상 · 표적강조)**")
+        st.caption(
+            "화질향상(Stage2)·표적강조(Stage3) 각 단계에서 사용할 알고리즘을 고릅니다. "
+            "위 체크박스로 해당 단계를 켜야 실제로 적용됩니다."
+        )
+        _qa = a.get("quality") or {}
+        _ea = a.get("emphasis") or {}
+        _q_opts = _qa.get("options") or []
+        _e_opts = _ea.get("options") or []
+        _q_ids = [o["id"] for o in _q_opts] or ["clahe_lab"]
+        _e_ids = [o["id"] for o in _e_opts] or ["wavelet_gpu"]
+        _q_label = {o["id"]: o.get("label", o["id"]) for o in _q_opts}
+        _e_label = {o["id"]: o.get("label", o["id"]) for o in _e_opts}
+        _q_cur = _qa.get("current") or _q_ids[0]
+        _e_cur = _ea.get("current") or _e_ids[0]
+        ac = st.columns(2)
+        quality_algo = ac[0].selectbox(
+            "🎚️ 화질향상 알고리즘", _q_ids,
+            index=_q_ids.index(_q_cur) if _q_cur in _q_ids else 0,
+            format_func=lambda x: _q_label.get(x, x), key="ctl_qalgo",
+            help="CLAHE=국소 대비 향상 / Retinex=전체 밝기 균형.",
+        )
+        emphasis_algo = ac[1].selectbox(
+            "🔎 표적강조 알고리즘", _e_ids,
+            index=_e_ids.index(_e_cur) if _e_cur in _e_ids else 0,
+            format_func=lambda x: _e_label.get(x, x), key="ctl_ealgo",
+            help="Wavelet=미세 패턴(고품질) / DoG=중·대형 윤곽(kornia) / Unsharp=경량 선명화.",
+        )
+
         st.markdown("**전처리 — 안개 제거(Stage1)**")
         _last_br = f.get("last_brightness")
         _last_ch = f.get("last_choice")
@@ -319,23 +377,14 @@ def _controls_panel(backend: str) -> None:
             ),
         )
 
-        st.markdown("**전처리 — 암흑/저조도 보정(Stage1 dark)**")
-        dc1, dc2 = st.columns([1, 2])
-        dark_enabled = dc1.checkbox(
-            "암흑 보정 사용", value=bool(f.get("dark_enabled", True)), key="ctl_darkon",
-            help=(
-                "어두운 장면(auto: 밝기 < 하한, 또는 mode=dark)에 적용되는 저조도 보정(Zero-DCE++).\n\n"
-                "• **끄면** 어두운 장면도 **원본 그대로** 둡니다(밝아지지 않음).\n"
-                "• 영상이 인위적으로 밝아져 보이면 이걸 꺼서 확인하세요."
-            ),
-        )
-        dark_gain = dc2.slider(
+        st.markdown("**전처리 — 저조도/야간 밝기 게인(Stage1 dark)**")
+        dark_gain = st.slider(
             "dark_gain — 저조도 밝기 게인", 0.1, 3.0,
             float(f.get("dark_gain", 1.0)), 0.05, key="ctl_darkgain",
             help=(
                 "저조도 보정 결과의 밝기 배율(brightness_gain). 1.0=모델 기본.\n\n"
                 "• **낮추면**(<1.0) 덜 밝게(과보정/노이즈 억제), **높이면**(>1.0) 더 밝게.\n"
-                "• '암흑 보정 사용'이 켜져 있을 때만 효과가 있습니다."
+                "• 위 '🌙 저조도/야간'이 켜져 있을 때만 효과가 있습니다."
             ),
         )
 
@@ -373,13 +422,19 @@ def _controls_panel(backend: str) -> None:
             ok_f, res_f = _post_json(backend, "/api/preprocess/stage1",
                                      {"mode": fog_mode, "foggy_th": fog_th,
                                       "foggy_th_high": fog_th_high,
-                                      "dark_enabled": dark_enabled, "dark_gain": dark_gain})
-            if ok_d and ok_t and ok_f:
+                                      "dark_enabled": dark_enabled, "dark_gain": dark_gain,
+                                      "fog_enabled": fog_enabled,
+                                      "stage2_enabled": stage2_enabled,
+                                      "stage3_enabled": stage3_enabled})
+            ok_a, res_a = _post_json(backend, "/api/preprocess/algorithms",
+                                     {"quality_id": quality_algo,
+                                      "emphasis_id": emphasis_algo})
+            if ok_d and ok_t and ok_f and ok_a:
                 st.success("적용 완료 — 다음 프레임부터 반영됩니다.")
             else:
-                st.error(f"적용 실패 (탐지={res_d} / 트래커={res_t} / 안개={res_f})")
+                st.error(f"적용 실패 (탐지={res_d} / 트래커={res_t} / 안개={res_f} / 알고리즘={res_a})")
         if b2.button("↺ 현재값 다시 불러오기", width="stretch", key="ctl_reload"):
-            for k in ("init_tcfg", "init_dcfg", "init_fcfg", *_CTL_KEYS):
+            for k in ("init_tcfg", "init_dcfg", "init_fcfg", "init_algos", *_CTL_KEYS):
                 st.session_state.pop(k, None)
             st.rerun()
 
@@ -401,6 +456,46 @@ with st.sidebar:
         st.success("백엔드 연결됨")
     else:
         st.error("백엔드에 연결할 수 없음")
+
+    # ── 탐지 모델 선택/교체 ──────────────────────────────────────────
+    if healthy:
+        st.divider()
+        st.subheader("🧠 탐지 모델")
+        _mdata = _get_json(backend, "/api/detector/models") or {}
+        _models = _mdata.get("models", []) or []
+        _cur = _mdata.get("current")
+        if _models:
+            _paths = [m["path"] for m in _models]
+
+            def _fmt_model(p: str) -> str:
+                m = next((x for x in _models if x["path"] == p), None)
+                if not m:
+                    return p
+                mark = "  ◀ 현재" if m.get("current") else ""
+                return f'{m["name"]}  ·  {m.get("task", "?")}  ·  {m.get("size_mb", "?")}MB{mark}'
+
+            _idx = _paths.index(_cur) if _cur in _paths else 0
+            sel_model = st.selectbox(
+                "사용할 모델", _paths, index=_idx, format_func=_fmt_model, key="ctl_model",
+                help="src/v1/models/ 아래의 .pt/.engine 을 런타임에 교체합니다(재시작 불필요). "
+                     "OBB(회전 박스) 모델도 지원합니다.",
+            )
+            st.caption(f"현재 로드: `{_cur or '—'}`  ·  task=`{_mdata.get('task', '?')}`")
+            if st.button("🔀 이 모델로 교체", width="stretch", key="btn_model_switch"):
+                with st.spinner("모델 로드 중… (몇 초 걸릴 수 있음)"):
+                    ok_m, body_m = _post_json(
+                        backend, "/api/detector/model", {"path": sel_model}, timeout=120
+                    )
+                if ok_m:
+                    # 탐지 파라미터 패널 현재값을 새 모델 기준으로 다시 불러오게 한다.
+                    st.session_state.pop("init_dcfg", None)
+                    st.session_state.stream_nonce += 1  # 라이브 화면 재연결
+                    st.success(f"모델 교체됨: {sel_model}")
+                    st.rerun()
+                else:
+                    st.error(f"교체 실패: {body_m}")
+        else:
+            st.info("models/ 폴더에 사용할 수 있는 .pt/.engine 이 없습니다.")
 
     st.divider()
     st.subheader("📥 입력 영상")

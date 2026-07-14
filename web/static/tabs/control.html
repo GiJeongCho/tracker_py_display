@@ -1,0 +1,83 @@
+<div class="flex flex-col gap-4">
+
+  <!-- 성능 · 지연 -->
+  <div class="bg-surface-light dark:bg-surface-dark rounded-lg border border-border-light dark:border-border-dark p-4">
+    <h2 class="text-lg font-bold mb-3 flex items-center gap-2"><span class="material-icons text-primary">speed</span> 처리 성능 · 지연 분석</h2>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+      <div class="bg-background-light dark:bg-background-dark rounded-lg border border-border-light dark:border-border-dark p-3 text-center">
+        <div class="text-xs text-text-light-secondary dark:text-dark-secondary mb-1">실제 처리 FPS</div>
+        <div id="m-procfps" class="text-2xl font-bold font-mono text-primary">--</div></div>
+      <div class="bg-background-light dark:bg-background-dark rounded-lg border border-border-light dark:border-border-dark p-3 text-center">
+        <div class="text-xs text-text-light-secondary dark:text-dark-secondary mb-1">평균 처리시간/프레임</div>
+        <div id="m-total" class="text-2xl font-bold font-mono">--</div></div>
+      <div class="bg-background-light dark:bg-background-dark rounded-lg border border-border-light dark:border-border-dark p-3 text-center">
+        <div class="text-xs text-text-light-secondary dark:text-dark-secondary mb-1">소스 FPS</div>
+        <div id="m-fps" class="text-2xl font-bold font-mono">--</div></div>
+      <div class="bg-background-light dark:bg-background-dark rounded-lg border border-border-light dark:border-border-dark p-3 text-center">
+        <div class="text-xs text-text-light-secondary dark:text-dark-secondary mb-1">처리 프레임</div>
+        <div id="m-frames" class="text-2xl font-bold font-mono">--</div></div>
+    </div>
+    <h3 class="text-sm font-bold mb-2">단계별 처리시간 (ms) — 막대가 길수록 지연</h3>
+    <div id="perf-stages" class="flex flex-col gap-2"><div class="text-sm text-text-light-secondary dark:text-dark-secondary py-4 text-center">처리 대기 중…</div></div>
+    <div id="perf-summary" class="text-xs text-text-light-secondary dark:text-dark-secondary mt-2"></div>
+  </div>
+
+  <!-- 물체 · 속도벡터 -->
+  <div class="bg-surface-light dark:bg-surface-dark rounded-lg border border-border-light dark:border-border-dark p-4">
+    <h2 class="text-lg font-bold mb-3 flex items-center gap-2"><span class="material-icons text-primary">my_location</span> 탐지 물체 · 위치 · 속도벡터</h2>
+    <div class="flex gap-3 mb-3">
+      <div class="flex-1 bg-background-light dark:bg-background-dark rounded-lg border border-border-light dark:border-border-dark p-3 text-center">
+        <div class="text-xs text-text-light-secondary dark:text-dark-secondary mb-1">총 물체 수</div><div id="o-total" class="text-2xl font-bold font-mono text-primary">0</div></div>
+      <div class="flex-1 bg-background-light dark:bg-background-dark rounded-lg border border-border-light dark:border-border-dark p-3 text-center">
+        <div class="text-xs text-text-light-secondary dark:text-dark-secondary mb-1">이동 중</div><div id="o-moving" class="text-2xl font-bold font-mono text-green-500">0</div></div>
+    </div>
+    <div class="overflow-x-auto rounded-lg border border-border-light dark:border-border-dark">
+      <table class="w-full text-sm text-center">
+        <thead class="bg-gray-100 dark:bg-gray-800 text-xs font-bold"><tr>
+          <th class="px-2 py-2">ID</th><th class="px-2 py-2">종류</th><th class="px-2 py-2">위치(x,y)</th>
+          <th class="px-2 py-2">속력</th><th class="px-2 py-2">벡터(vx,vy)</th><th class="px-2 py-2">방위(°)</th>
+          <th class="px-2 py-2">방향</th><th class="px-2 py-2">상태</th></tr></thead>
+        <tbody id="obj-tbody" class="divide-y divide-gray-200 dark:divide-gray-700">
+          <tr><td colspan="8" class="py-8 text-text-light-secondary dark:text-dark-secondary">표시할 트랙이 없습니다.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div id="obj-caption" class="text-xs text-text-light-secondary dark:text-dark-secondary mt-2"></div>
+  </div>
+
+  <!-- 파라미터 조정 -->
+  <div class="bg-surface-light dark:bg-surface-dark rounded-lg border border-border-light dark:border-border-dark p-4">
+    <div class="flex items-center justify-between mb-1">
+      <h2 class="text-lg font-bold flex items-center gap-2"><span class="material-icons text-primary">tune</span> 실시간 파라미터 조정</h2>
+      <span id="ctl-status" class="text-xs font-medium"></span>
+    </div>
+    <p class="text-xs text-text-light-secondary dark:text-dark-secondary mb-4">값을 바꾸고 <b>적용</b>을 누르면 다음 프레임부터 재시작 없이 반영됩니다.</p>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1">
+      <div>
+        <h3 class="text-sm font-bold mb-2 text-primary">탐지(YOLO) 민감도</h3>
+        <div class="ctl-slider" data-key="conf" data-min="0.05" data-max="0.9" data-step="0.01"></div>
+        <div class="ctl-slider" data-key="iou" data-min="0.1" data-max="0.95" data-step="0.05"></div>
+        <div class="ctl-slider" data-key="max_det" data-min="10" data-max="1000" data-step="10" data-int="1"></div>
+      </div>
+      <div>
+        <h3 class="text-sm font-bold mb-2 text-primary">트래킹 (칼만/매칭/시각화)</h3>
+        <div class="ctl-slider" data-key="max_age" data-min="1" data-max="300" data-step="1" data-int="1"></div>
+        <div class="ctl-slider" data-key="vel_damping" data-min="0" data-max="1" data-step="0.05"></div>
+        <div class="ctl-slider" data-key="vel_alpha" data-min="0.01" data-max="1" data-step="0.01"></div>
+        <div class="ctl-slider" data-key="arrow_scale" data-min="0" data-max="1" data-step="0.05"></div>
+        <div class="ctl-slider" data-key="base_gate" data-min="1" data-max="80" data-step="1"></div>
+        <div class="ctl-slider" data-key="iou_merge_gate" data-min="0" data-max="0.9" data-step="0.05"></div>
+        <div class="ctl-slider" data-key="max_speed" data-min="0" data-max="60" data-step="0.5"></div>
+        <div class="ctl-slider" data-key="min_hits" data-min="1" data-max="10" data-step="1" data-int="1"></div>
+        <div class="ctl-slider" data-key="label_lock_min_count" data-min="1" data-max="20" data-step="1" data-int="1"></div>
+        <label class="flex items-center gap-2 cursor-pointer py-2">
+          <input type="checkbox" id="ctl-label_lock" class="w-4 h-4"><span class="text-sm font-medium">라벨(이름) 고정</span></label>
+      </div>
+    </div>
+    <div class="flex gap-3 mt-4">
+      <button id="ctl-apply" class="flex-1 px-4 py-2 bg-primary hover:bg-orange-600 text-white rounded font-medium">✅ 적용</button>
+      <button id="ctl-reload" class="flex-1 px-4 py-2 bg-gray-200 dark:bg-gray-700 rounded font-medium">↺ 현재값 다시 불러오기</button>
+    </div>
+  </div>
+
+</div>

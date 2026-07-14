@@ -1,0 +1,67 @@
+<div class="flex flex-col gap-4">
+  <!-- 상단 요약 스탯 -->
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+    <div class="bg-surface-light dark:bg-surface-dark rounded-lg border border-border-light dark:border-border-dark p-4">
+      <div class="text-xs text-text-light-secondary dark:text-dark-secondary">총 추적 객체</div>
+      <div id="an-total" class="text-2xl font-bold text-primary mt-1">--</div>
+    </div>
+    <div class="bg-surface-light dark:bg-surface-dark rounded-lg border border-border-light dark:border-border-dark p-4">
+      <div class="text-xs text-text-light-secondary dark:text-dark-secondary">이동 중</div>
+      <div id="an-moving" class="text-2xl font-bold text-green-500 mt-1">--</div>
+    </div>
+    <div class="bg-surface-light dark:bg-surface-dark rounded-lg border border-border-light dark:border-border-dark p-4">
+      <div class="text-xs text-text-light-secondary dark:text-dark-secondary">평균 속력</div>
+      <div id="an-avgspd" class="text-2xl font-bold mt-1">--<span class="text-sm font-normal"> px/s</span></div>
+    </div>
+    <div class="bg-surface-light dark:bg-surface-dark rounded-lg border border-border-light dark:border-border-dark p-4">
+      <div class="text-xs text-text-light-secondary dark:text-dark-secondary">최다 종류</div>
+      <div id="an-topclass" class="text-2xl font-bold mt-1">--</div>
+    </div>
+  </div>
+
+  <!-- 차트 2열 -->
+  <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
+    <!-- 처리 성능 추이 -->
+    <div class="bg-surface-light dark:bg-surface-dark rounded-lg border border-border-light dark:border-border-dark p-4">
+      <h2 class="text-base font-bold mb-3 flex items-center gap-2"><span class="material-icons text-primary">show_chart</span> 처리 성능 추이</h2>
+      <div class="relative h-64"><canvas id="an-perf-chart"></canvas></div>
+      <p class="text-xs text-text-light-secondary dark:text-dark-secondary mt-2">최근 60프레임 · 처리 FPS(좌축) / 총 지연 ms(우축)</p>
+    </div>
+
+    <!-- 종류 분포 -->
+    <div class="bg-surface-light dark:bg-surface-dark rounded-lg border border-border-light dark:border-border-dark p-4">
+      <h2 class="text-base font-bold mb-3 flex items-center gap-2"><span class="material-icons text-primary">donut_large</span> 종류 분포</h2>
+      <div class="relative h-64"><canvas id="an-class-chart"></canvas></div>
+      <p class="text-xs text-text-light-secondary dark:text-dark-secondary mt-2">현재 추적 중인 객체의 종류별 개수</p>
+    </div>
+
+    <!-- 속력 분포 -->
+    <div class="bg-surface-light dark:bg-surface-dark rounded-lg border border-border-light dark:border-border-dark p-4">
+      <h2 class="text-base font-bold mb-3 flex items-center gap-2"><span class="material-icons text-primary">bar_chart</span> 속력 분포</h2>
+      <div class="relative h-64"><canvas id="an-speed-chart"></canvas></div>
+      <p class="text-xs text-text-light-secondary dark:text-dark-secondary mt-2">추적 객체 속력(px/s) 히스토그램</p>
+    </div>
+
+    <!-- 위치 분포 -->
+    <div class="bg-surface-light dark:bg-surface-dark rounded-lg border border-border-light dark:border-border-dark p-4">
+      <h2 class="text-base font-bold mb-3 flex items-center gap-2"><span class="material-icons text-primary">scatter_plot</span> 위치 분포</h2>
+      <div class="relative h-64"><canvas id="an-pos-chart"></canvas></div>
+      <p class="text-xs text-text-light-secondary dark:text-dark-secondary mt-2">화면좌표(좌상단 원점) 상의 객체 중심 위치 · 점 크기=속력</p>
+    </div>
+  </div>
+
+  <!-- 종류별 상세 표 -->
+  <div class="bg-surface-light dark:bg-surface-dark rounded-lg border border-border-light dark:border-border-dark p-4">
+    <h2 class="text-base font-bold mb-3 flex items-center gap-2"><span class="material-icons text-primary">table_chart</span> 종류별 통계</h2>
+    <div class="overflow-x-auto rounded-lg border border-border-light dark:border-border-dark">
+      <table class="w-full text-sm text-center">
+        <thead class="bg-gray-100 dark:bg-gray-800 text-xs font-bold">
+          <tr><th class="px-2 py-2">종류</th><th class="px-2 py-2">개수</th><th class="px-2 py-2">이동</th><th class="px-2 py-2">정지</th><th class="px-2 py-2">평균 속력(px/s)</th><th class="px-2 py-2">평균 크기(px)</th></tr>
+        </thead>
+        <tbody id="an-class-tbody" class="divide-y divide-gray-200 dark:divide-gray-700">
+          <tr><td colspan="6" class="py-8 text-text-light-secondary dark:text-dark-secondary">추적된 객체 없음</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>

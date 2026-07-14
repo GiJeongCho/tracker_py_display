@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>NIT V2.0 · 대시보드</title>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Nanum+Gothic:wght@400;700;800&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    darkMode: "class",
+    theme: { extend: { colors: {
+      primary: "#ff8c00",
+      "background-light": "#ffffff", "background-dark": "#121212",
+      "surface-light": "#ffffff", "surface-dark": "#1e1e1e",
+      "border-light": "#d1d5db", "border-dark": "#333333",
+      "text-light-primary": "#111827", "text-light-secondary": "#4b5563",
+      "text-dark-primary": "#e5e7eb", "text-dark-secondary": "#9ca3af",
+    }, fontFamily: { display: ["Nanum Gothic", "Roboto", "sans-serif"] } } },
+  };
+</script>
+<link rel="stylesheet" href="/static/css/styles.css">
+<!-- 차트 라이브러리 (분석·시각화 탭) -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<!-- 백엔드(FastAPI) 주소 설정: module app.js 보다 먼저 실행되어 window.NIT_BACKEND 를 확정 -->
+<script src="/static/config.js"></script>
+</head>
+<body class="font-display bg-background-light dark:bg-background-dark text-text-light-primary dark:text-dark-primary transition-colors duration-300 overflow-hidden">
+
+<div class="flex h-screen w-screen overflow-hidden">
+  <!-- ===================== Sidebar ===================== -->
+  <div class="relative flex-none z-20 flex h-full">
+    <aside id="sidebar" class="w-64 flex flex-col bg-surface-light dark:bg-surface-dark border-r border-border-light dark:border-border-dark transition-all duration-300 overflow-hidden">
+      <div id="sidebar-header" class="h-16 flex items-center px-4 flex-shrink-0 overflow-hidden relative group">
+        <div id="header-logo" class="logo-container h-10 w-10 flex items-center justify-center flex-shrink-0">
+          <span class="material-icons text-primary">radar</span>
+        </div>
+        <span class="sidebar-text ml-3 font-extrabold text-xl tracking-wide whitespace-nowrap opacity-100 transition-opacity duration-300 delay-100">NIT V2.0</span>
+        <button id="btn-sidebar-mode" class="absolute right-4 top-1/2 transform -translate-y-1/2 p-2 rounded-lg text-text-light-secondary dark:text-dark-secondary hover:bg-gray-200 dark:hover:bg-gray-700 transition-all duration-200 z-10">
+          <span class="material-icons text-lg">chevron_left</span>
+        </button>
+      </div>
+
+      <nav class="flex flex-col space-y-2 flex-grow w-full px-3 py-4">
+        <button id="btn-dashboard" title="대시보드" class="flex items-center px-3 py-3 rounded-lg bg-primary text-white w-full transition-colors">
+          <span class="material-icons flex-shrink-0">dashboard</span>
+          <span class="sidebar-text ml-3 font-medium whitespace-nowrap opacity-100 transition-opacity duration-300 delay-100">대시보드</span>
+        </button>
+        <button id="btn-control" title="성능·제어" class="flex items-center px-3 py-3 rounded-lg text-text-light-secondary dark:text-dark-secondary hover:bg-gray-200 dark:hover:bg-gray-700 w-full transition-colors">
+          <span class="material-icons flex-shrink-0">tune</span>
+          <span class="sidebar-text ml-3 font-medium whitespace-nowrap opacity-100 transition-opacity duration-300 delay-100">성능·제어</span>
+        </button>
+        <button id="btn-analytics" title="분석·시각화" class="flex items-center px-3 py-3 rounded-lg text-text-light-secondary dark:text-dark-secondary hover:bg-gray-200 dark:hover:bg-gray-700 w-full transition-colors">
+          <span class="material-icons flex-shrink-0">insights</span>
+          <span class="sidebar-text ml-3 font-medium whitespace-nowrap opacity-100 transition-opacity duration-300 delay-100">분석·시각화</span>
+        </button>
+      </nav>
+
+      <div class="flex flex-col space-y-2 px-3 py-4 border-t border-border-light dark:border-border-dark">
+        <!-- 연결 상태 -->
+        <div id="conn-badge" class="flex items-center px-3 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-xs font-medium">
+          <span id="conn-dot" class="w-2.5 h-2.5 rounded-full bg-gray-400 flex-shrink-0"></span>
+          <span id="conn-text" class="sidebar-text ml-2 whitespace-nowrap opacity-100 transition-opacity duration-300 delay-100">백엔드 확인 중…</span>
+        </div>
+        <!-- 백엔드 설정 -->
+        <details class="sidebar-text opacity-100 transition-opacity duration-300 delay-100">
+          <summary class="flex items-center px-3 py-2 rounded-lg text-text-light-secondary dark:text-dark-secondary hover:bg-gray-200 dark:hover:bg-gray-700 cursor-pointer text-sm">
+            <span class="material-icons flex-shrink-0 text-base">settings</span><span class="ml-3">백엔드 설정</span>
+          </summary>
+          <div class="px-2 pt-2">
+            <input id="backend-input" type="text" placeholder="http://호스트:8886"
+                   class="w-full px-2 py-1.5 text-xs rounded border border-border-light dark:border-border-dark bg-background-light dark:bg-background-dark">
+            <button id="btn-backend" class="w-full mt-2 px-2 py-1.5 bg-gray-300 dark:bg-gray-700 rounded text-xs">적용(새로고침)</button>
+          </div>
+        </details>
+        <!-- 테마 -->
+        <button id="theme-toggle" class="flex items-center px-3 py-3 rounded-lg text-text-light-secondary dark:text-dark-secondary hover:bg-gray-200 dark:hover:bg-gray-700 w-full transition-colors">
+          <span class="material-icons flex-shrink-0">dark_mode</span>
+          <span id="theme-toggle-text" class="sidebar-text ml-3 font-medium whitespace-nowrap opacity-100 transition-opacity duration-300 delay-100">다크 모드</span>
+        </button>
+      </div>
+    </aside>
+  </div>
+
+  <!-- ===================== Main ===================== -->
+  <main class="flex-1 flex flex-col h-full min-w-0">
+    <div class="flex-1 p-4 overflow-hidden" id="main-content">
+      <!-- 탭 콘텐츠가 tab-loader 로 동적 삽입됨 -->
+    </div>
+  </main>
+</div>
+
+<script type="module" src="/static/js/app.js"></script>
+</body>
+</html>
