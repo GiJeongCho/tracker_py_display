@@ -7,8 +7,11 @@ import { tabLoader } from './utils/tab-loader.js';
 class App {
   constructor() {
     this.currentTab = null;
-    this.tabs = { dashboard: null, control: null, analytics: null };
-    this.tabButtonMap = { dashboard: 'btn-dashboard', control: 'btn-control', analytics: 'btn-analytics' };
+    this.tabs = { dashboard: null, control: null, analytics: null, report: null };
+    this.tabButtonMap = {
+      dashboard: 'btn-dashboard', control: 'btn-control',
+      analytics: 'btn-analytics', report: 'btn-report',
+    };
   }
 
   async init() {

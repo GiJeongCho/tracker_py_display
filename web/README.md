@@ -106,19 +106,30 @@ await api.upload('/api/upload', fileObject);
 | 목적 | 메서드 · 경로 | body |
 |---|---|---|
 | 조회 | `GET /api/preprocess/stage1` | — |
-| 조정 | `POST /api/preprocess/stage1` | `{ mode:"auto\|fog\|dark\|none", foggy_th, foggy_th_high, fog_enabled, dark_enabled, dark_gain, stage2_enabled, stage3_enabled }` |
+| 조정 | `POST /api/preprocess/stage1` | `{ mode:"auto\|fog\|dark\|none", fog_enabled, dark_enabled, dark_gain, stage2_enabled, stage3_enabled }` (안개 판정은 대비/채도/선명도 기반 auto — 밝기 구간 `foggy_th` 는 미사용) |
 
-### 7) 전처리 알고리즘 선택 (화질향상 2 / 표적강조 3)
+### 7) 전처리 알고리즘 선택 (안개 2 / 화질향상 2 / 표적강조 3)
 | 목적 | 메서드 · 경로 | body |
 |---|---|---|
-| 조회 | `GET /api/preprocess/algorithms` | — (`{quality:{options,current}, emphasis:{...}}`) |
-| 선택 | `POST /api/preprocess/algorithms` | `{ quality_id:"clahe_lab\|ssr", emphasis_id:"wavelet_gpu\|dog_gpu\|unsharp_mask" }` |
+| 조회 | `GET /api/preprocess/algorithms` | — (`{fog:{options,current}, quality:{...}, emphasis:{...}}`) |
+| 선택 | `POST /api/preprocess/algorithms` | `{ fog_id:"dcp_dehaze\|aod_net", quality_id:"clahe_lab\|ssr", emphasis_id:"wavelet_gpu\|dog_gpu\|unsharp_mask" }` |
 
 ### 8) 탐지 모델 교체
 | 목적 | 메서드 · 경로 | body |
 |---|---|---|
 | 목록 | `GET /api/detector/models` | — (`{current, task, models:[{name,path,task,size_mb,current}]}`) |
 | 교체 | `POST /api/detector/model` | `{ "path": "models/…/best.pt" }` |
+
+### 9) 추적 세션 보고서 (보고서 탭)
+백엔드가 기록 중 매 프레임 트랙별 생애주기·속력·이동거리와 성능을 누적한다.
+| 목적 | 메서드 · 경로 | 반환 |
+|---|---|---|
+| 시작 | `POST /api/report/start` | `{ ok, recording:true }` (기존 세션 초기화) |
+| 중지 | `POST /api/report/stop` | `{ ok, recording:false, report:{…} }` |
+| 조회 | `GET /api/report` | `{ 세션개요, classes:[…], tracks:[…] }` (px/s) |
+| 상태 | `GET /api/report/status` | `{ recording, frames, elapsed_sec, unique_tracks, concurrent_max }` |
+
+- 프런트(`tabs/report.js`): 기록 시작/중지 · 실시간 현황(한글, `nit-status` 구독) · 세션 요약 표 · CSV/JSON 다운로드(클라이언트 생성).
 
 ## Streamlit ↔ 새 프런트 매핑
 | Streamlit(app.py) | 새 프런트 |

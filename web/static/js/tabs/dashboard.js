@@ -18,18 +18,19 @@ function reloadFeeds() {
   const compare = $('compare-toggle') && $('compare-toggle').checked;
   const before = $('img-before');
   if ($('cell-before')) $('cell-before').style.display = compare ? 'flex' : 'none';
+  // 비교 모드에서만 '처리 후' 제목을 보여 '처리 전' 제목과 Y축을 맞춘다.
+  if ($('after-title')) $('after-title').style.display = compare ? 'block' : 'none';
   if ($('live-wrap')) $('live-wrap').className = compare ? 'grid grid-cols-1 md:grid-cols-2 gap-3' : 'grid grid-cols-1 gap-3';
   if (before) before.src = compare ? api.mjpeg('original') : '';
   const label = (FEEDS.find((f) => f[0] === _feed) || [, _feed])[1];
   if ($('after-cap')) $('after-cap').textContent = label;
-  if ($('live-info')) $('live-info').textContent = '스트림: ' + (api.base() || location.origin) + '/video_feed/' + _feed;
 }
 
 function buildFeedButtons() {
   const wrap = $('feed-buttons');
   if (!wrap) return;
   wrap.innerHTML = FEEDS.map(([id, label]) =>
-    `<button class="feed-btn px-2 py-1 rounded text-xs font-medium bg-gray-100 dark:bg-gray-800 ${id === _feed ? 'active' : ''}" data-feed="${id}">${label}</button>`).join('');
+    `<button class="feed-btn ${id === _feed ? 'active' : ''}" data-feed="${id}">${label}</button>`).join('');
   wrap.querySelectorAll('.feed-btn').forEach((b) => b.addEventListener('click', () => {
     _feed = b.dataset.feed;
     wrap.querySelectorAll('.feed-btn').forEach((x) => x.classList.toggle('active', x === b));
@@ -43,12 +44,6 @@ function fillSelect(sel, options, current) {
     `<option value="${o.id}" ${o.id === current ? 'selected' : ''}>${o.label || o.id}</option>`).join('');
 }
 
-function updateThLabel() {
-  let lo = parseFloat($('pp-th-lo').value), hi = parseFloat($('pp-th-hi').value);
-  if (hi < lo) hi = lo;
-  $('pp-th-val').textContent = `[${lo.toFixed(0)} · ${hi.toFixed(0)}]`;
-}
-
 async function loadPreprocess() {
   try {
     const s1 = await api.get('/api/preprocess/stage1');
@@ -59,28 +54,25 @@ async function loadPreprocess() {
     if ($('pp-mode') && s1.mode) $('pp-mode').value = s1.mode;
     const gain = $('ctl-dark_gain'); if (gain) gain.value = s1.dark_gain != null ? s1.dark_gain : 1.0;
     const gd = $('val-dark_gain'); if (gd && gain) gd.textContent = gain.value;
-    const lo = s1.foggy_th != null ? s1.foggy_th : 90;
-    const hi = s1.foggy_th_high != null ? s1.foggy_th_high : 200;
-    $('pp-th-lo').value = lo; $('pp-th-hi').value = Math.max(lo, hi); updateThLabel();
   } catch (e) { /* idle */ }
   try {
     const algos = await api.get('/api/preprocess/algorithms');
+    fillSelect($('pp-falgo'), algos.fog && algos.fog.options, algos.fog && algos.fog.current);
     fillSelect($('pp-qalgo'), algos.quality && algos.quality.options, algos.quality && algos.quality.current);
     fillSelect($('pp-ealgo'), algos.emphasis && algos.emphasis.options, algos.emphasis && algos.emphasis.current);
   } catch (e) { /* idle */ }
 }
 
 async function applyPreprocess() {
-  let lo = parseFloat($('pp-th-lo').value), hi = parseFloat($('pp-th-hi').value);
-  if (hi < lo) { const t = lo; lo = hi; hi = t; }
   const gain = $('ctl-dark_gain');
   const r1 = await api.post('/api/preprocess/stage1', {
-    mode: $('pp-mode').value, foggy_th: lo, foggy_th_high: hi,
+    mode: $('pp-mode').value,
     fog_enabled: $('pp-fog').checked, dark_enabled: $('pp-dark').checked,
     dark_gain: gain ? parseFloat(gain.value) : 1.0,
     stage2_enabled: $('pp-stage2').checked, stage3_enabled: $('pp-stage3').checked,
   });
   const r2 = await api.post('/api/preprocess/algorithms', {
+    fog_id: $('pp-falgo').value || undefined,
     quality_id: $('pp-qalgo').value || undefined,
     emphasis_id: $('pp-ealgo').value || undefined,
   });
@@ -98,6 +90,23 @@ function fillSelect2(sel, models) {
   sel.innerHTML = models.map((x) =>
     `<option value="${x.path}" ${x.current ? 'selected' : ''}>${x.name} · ${x.task || '?'} · ${x.size_mb || '?'}MB</option>`).join('');
 }
+let _trailOn = true;   // 마지막으로 켜졌을 때 복원할 두께 기억용
+async function loadTrailState() {
+  try {
+    const t = await api.get('/api/tracker/config');
+    const on = Number(t.trail_thickness) > 0;
+    const el = $('trail-toggle'); if (el) el.checked = on;
+    _trailOn = on;
+  } catch (e) { /* idle */ }
+}
+async function applyTrail() {
+  const on = $('trail-toggle').checked;
+  _trailOn = on;
+  // 켜짐=두께 2, 꺼짐=0. draw_tracks 가 trail_thickness>0 일 때만 경로를 그린다.
+  const r = await api.post('/api/tracker/config', { trail_thickness: on ? 2 : 0 });
+  setStatus('dash-io-status', on ? '이동 경로 표시 켬' : '이동 경로 표시 끔', r.ok);
+}
+
 async function switchModel() {
   const path = $('dash-model').value;
   if (!path) return;
@@ -134,6 +143,99 @@ function nowString() {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
 }
 
+// ── 실시간 정찰 보고(자연어 요약) ────────────────────────────────
+const FRAME_W = 640, FRAME_H = 480;  // pipeline.fit_input 기준 해상도
+// 이동/정차 판정 임계(px/s). px/frame 은 fps 에 따라 값이 요동쳐(저fps 스트림에서
+// 정지도 이동으로 오판) 부적절 → 물리량인 px/s 로 판정한다. 이 값 미만은 정차.
+const MOVE_THRESH_PXS = 8;
+
+// 속도벡터(px/frame)의 방향을 화면 기준 상/하/좌/우(+대각)로. 크기 임계 없이
+// 성분비로만 결정. (화면 y는 아래로 증가 → +y=하)
+function _dirLRUD(vx, vy) {
+  const ax = Math.abs(vx), ay = Math.abs(vy);
+  if (ax < 1e-9 && ay < 1e-9) return '';
+  const ew = ax >= ay * 0.4 ? (vx > 0 ? '우측' : '좌측') : '';
+  const ns = ay >= ax * 0.4 ? (vy > 0 ? '하단' : '상단') : '';
+  return [ew, ns].filter(Boolean).join(' ')
+    || (ax > ay ? (vx > 0 ? '우측' : '좌측') : (vy > 0 ? '하단' : '상단'));
+}
+
+function _echelon(n) {
+  if (n <= 0) return '미식별';
+  if (n <= 2) return '소규모(단독~2대)';
+  if (n <= 5) return '소대급';
+  if (n <= 10) return '중대(-)급';
+  return '중대급 이상';
+}
+function _region(cx, cy) {
+  const col = cx < FRAME_W / 3 ? '좌측' : (cx < 2 * FRAME_W / 3 ? '중앙' : '우측');
+  const row = cy < FRAME_H / 3 ? '상단' : (cy < 2 * FRAME_H / 3 ? '중앙' : '하단');
+  return row === '중앙' && col === '중앙' ? '중앙' : `${col} ${row}`;
+}
+
+// 실시간 추적 결과 위 '정찰 보고'(자연어). 헤드라인(총계·규모) + 종류별 서술.
+function renderReport(det, status) {
+  const box = $('dash-report');
+  if (!box) return;
+  const tEl = $('report-time');
+  if (tEl) tEl.textContent = nowString().slice(11);
+  const tracks = (det && det.tracks) || [];
+  if (!tracks.length) {
+    box.innerHTML = '<p class="text-text-light-secondary dark:text-dark-secondary">표적 미식별 — 접촉 없음</p>';
+    return;
+  }
+  const fps = (status && Number(status.fps)) || 25;
+  const g = new Map();
+  const kindCount = new Map();
+  let movingTotal = 0;
+  tracks.forEach((tk) => {
+    const label = tk.label ?? '?';
+    kindCount.set(label, (kindCount.get(label) || 0) + 1);
+    const bb = tk.bbox || [0, 0, 0, 0];
+    const cx = (Number(bb[0]) + Number(bb[2])) / 2, cy = (Number(bb[1]) + Number(bb[3])) / 2;
+    const vx = Number(tk.vx) || 0, vy = Number(tk.vy) || 0;
+    const spdPs = Math.hypot(vx, vy) * fps;   // px/s (물리량, fps 무관 판정)
+    const o = g.get(label) || { n: 0, cx: 0, cy: 0, vx: 0, vy: 0, sp: 0, mv: 0, st: 0 };
+    o.n += 1; o.cx += cx; o.cy += cy;
+    if (spdPs > MOVE_THRESH_PXS) { o.vx += vx; o.vy += vy; o.sp += spdPs; o.mv += 1; movingTotal += 1; }
+    else { o.st += 1; }
+    g.set(label, o);
+  });
+  const total = tracks.length;
+  const mixed = kindCount.size > 1 ? ' 혼성' : '';
+  const head = `<p class="font-bold text-primary">■ 총 ${total}대 식별 (이동 ${movingTotal}·정차 ${total - movingTotal}) · 추정 규모 ${_echelon(total)}${mixed}</p>`;
+
+  // 이동분 방향 텍스트: 평균 벡터가 상쇄돼 크기가 작으면 '여러 방향'으로.
+  const dirText = (o) => {
+    const avx = o.vx / o.mv, avy = o.vy / o.mv;
+    const meanSpdPf = (o.sp / o.mv) / fps;       // 평균 개별 속력(px/frame)
+    const avgMag = Math.hypot(avx, avy);          // 평균 벡터 크기(px/frame)
+    if (o.mv > 1 && avgMag < 0.35 * meanSpdPf) return '여러 방향으로';  // 상쇄 → 방향 혼재
+    const d = _dirLRUD(avx, avy);
+    return d ? `${d}으로` : '여러 방향으로';
+  };
+
+  const lines = [...g.entries()].sort((a, b) => b[1].n - a[1].n).map(([label, o]) => {
+    const cx = Math.round(o.cx / o.n), cy = Math.round(o.cy / o.n);
+    const reg = _region(cx, cy);
+    if (o.mv && o.st) {
+      const sp = Math.round(o.sp / o.mv);
+      return `<p>· 화면 <b>${reg}</b> 일대(${cx}, ${cy})에 <b>${label} ${o.n}대</b> — 이동 ${o.mv}대(평균 <b>${sp} px/s</b>, ${dirText(o)})·정차 ${o.st}대입니다.</p>`;
+    }
+    if (o.mv) {
+      const sp = Math.round(o.sp / o.mv);
+      return `<p>· 화면 <b>${reg}</b> 일대(${cx}, ${cy})에 <b>${label} ${o.n}대</b>, 평균 <b>${sp} px/s</b>로 ${dirText(o)} <b>이동 중</b>입니다.</p>`;
+    }
+    return `<p>· 화면 <b>${reg}</b> 일대(${cx}, ${cy})에 <b>${label} ${o.n}대</b> <b>정차 중</b>입니다.</p>`;
+  });
+  box.innerHTML = head + lines.join('');
+}
+
+// 라벨색 점(칩) — 비디오 박스색과 동일(백엔드 tk.color, hex). 없으면 생략.
+function _dot(c) {
+  return c ? `<span class="color-dot" style="background:${c}"></span>` : '';
+}
+
 function renderRight(det) {
   const now = $('dash-now'); if (now) now.textContent = nowString();
   const tracks = (det && det.tracks) || [];
@@ -149,6 +251,7 @@ function renderRight(det) {
       const g = groups.get(label) || { count: 0, w: 0, h: 0 };
       g.count += 1; g.w += w; g.h += h; groups.set(label, g);
     });
+    // 요약은 '종류별' 집계이므로 색 점을 붙이지 않는다(색은 ID별이라 대표색이 무의미).
     sb.innerHTML = groups.size ? [...groups.entries()].map(([label, g]) => {
       const aw = Math.round(g.w / g.count), ah = Math.round(g.h / g.count);
       return `<tr><td class="px-2 py-1.5 font-mono text-xs">${aw}×${ah}</td><td class="px-2 py-1.5 font-bold">${label}</td><td class="px-2 py-1.5 font-mono">${g.count}</td></tr>`;
@@ -162,7 +265,7 @@ function renderRight(det) {
       const bb = tk.bbox || [0, 0, 0, 0];
       const cx = Math.round((Number(bb[0]) + Number(bb[2])) / 2), cy = Math.round((Number(bb[1]) + Number(bb[3])) / 2);
       const spd = Math.hypot(Number(tk.vx) || 0, Number(tk.vy) || 0);
-      return `<tr><td class="px-2 py-1.5 font-mono font-bold">#${tk.track_id}</td><td class="px-2 py-1.5 font-bold">${tk.label ?? '?'}</td>
+      return `<tr><td class="px-2 py-1.5 font-mono font-bold">#${tk.track_id}</td><td class="px-2 py-1.5 font-bold">${_dot(tk.color)}${tk.label ?? '?'}</td>
         <td class="px-2 py-1.5 font-mono text-xs">(${cx}, ${cy})</td><td class="px-2 py-1.5 font-mono">${spd.toFixed(1)}</td></tr>`;
     }).join('') : '<tr><td colspan="4" class="py-8 text-text-light-secondary dark:text-dark-secondary">추적된 객체 없음</td></tr>';
   }
@@ -174,6 +277,7 @@ export function init() {
   reloadFeeds();
   loadPreprocess();
   loadModels();
+  loadTrailState();
 
   $('dash-upload').addEventListener('click', () => $('dash-file').click());
   $('dash-file').addEventListener('change', (e) => { const f = e.target.files && e.target.files[0]; if (f) uploadFile(f); e.target.value = ''; });
@@ -182,12 +286,14 @@ export function init() {
   $('dash-model-apply').addEventListener('click', switchModel);
 
   $('compare-toggle').addEventListener('change', reloadFeeds);
+  $('trail-toggle').addEventListener('change', applyTrail);
   $('pp-apply').addEventListener('click', applyPreprocess);
   $('pp-reload').addEventListener('click', () => { loadPreprocess(); setStatus('pp-status', '현재값 불러옴', true); });
-  $('pp-th-lo').addEventListener('input', updateThLabel);
-  $('pp-th-hi').addEventListener('input', updateThLabel);
 
-  _onStatus = (e) => { const d = e.detail; if (d && d.online) renderRight(d.det); };
+  _onStatus = (e) => {
+    const d = e.detail;
+    if (d && d.online) { renderRight(d.det); renderReport(d.det, d.status); }
+  };
   window.addEventListener('nit-status', _onStatus);
 }
 

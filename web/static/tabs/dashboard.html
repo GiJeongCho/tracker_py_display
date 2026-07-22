@@ -33,24 +33,41 @@
     <div class="w-full xl:flex-1 min-w-0 bg-surface-light dark:bg-surface-dark rounded-lg border border-border-light dark:border-border-dark p-4">
       <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
         <h2 class="text-base font-bold flex items-center gap-2"><span class="material-icons text-primary">videocam</span> 실시간 화면</h2>
-        <label class="text-xs flex items-center gap-1"><input id="compare-toggle" type="checkbox" class="w-4 h-4"> 처리 전/후</label>
-      </div>
-      <div id="feed-buttons" class="flex gap-1 flex-wrap mb-3"></div>
-      <div id="live-wrap" class="grid grid-cols-1 gap-3">
-        <div id="cell-after" class="flex flex-col items-center">
-          <div id="after-cap" class="text-sm font-semibold mb-1">추적 결과</div>
-          <img id="img-after" class="live-img" alt="처리 결과 로딩 중…">
+        <div class="flex items-center gap-3">
+          <label class="text-xs flex items-center gap-1"><input id="trail-toggle" type="checkbox" class="w-4 h-4" checked> 이동 경로</label>
+          <label class="text-xs flex items-center gap-1"><input id="compare-toggle" type="checkbox" class="w-4 h-4"> 처리 전/후</label>
         </div>
+      </div>
+      <div id="live-wrap" class="grid grid-cols-1 gap-3">
+        <!-- 비교 시 원본(왼쪽) → 처리 후(오른쪽) 순서. 미비교 시 원본은 숨김 -->
         <div id="cell-before" class="flex-col items-center" style="display:none">
           <div class="text-sm font-semibold mb-1">처리 전 (원본)</div>
           <img id="img-before" class="live-img" alt="원본 로딩 중…">
         </div>
+        <div id="cell-after" class="flex flex-col items-center w-full">
+          <div id="after-title" class="text-sm font-semibold mb-1" style="display:none">처리 후</div>
+          <div class="relative w-full">
+            <img id="img-after" class="live-img" alt="처리 결과 로딩 중…">
+            <!-- 처리 단계 선택: 영상 상단에 작게 오버레이 -->
+            <div id="feed-buttons" class="feed-overlay"></div>
+          </div>
+        </div>
       </div>
-      <div id="live-info" class="text-xs text-text-light-secondary dark:text-dark-secondary mt-2 break-all"></div>
     </div>
 
     <!-- 실시간 추적 결과 (오른쪽): 요약 카드 + 높이제한 스크롤 상세표 -->
     <div class="w-full xl:w-[400px] flex-none bg-surface-light dark:bg-surface-dark rounded-lg border border-border-light dark:border-border-dark p-4">
+      <!-- 정찰 보고 (자연어) : 실시간 추적 결과 위에 표시 -->
+      <div class="rounded-lg border border-primary/40 bg-primary/5 dark:bg-primary/10 overflow-hidden mb-3 p-3">
+        <div class="flex items-center justify-between mb-2">
+          <h3 class="text-sm font-bold flex items-center gap-1"><span class="material-icons text-primary text-base">description</span> 정찰 보고</h3>
+          <span id="report-time" class="text-xs font-mono text-text-light-secondary dark:text-dark-secondary">—</span>
+        </div>
+        <div id="dash-report" class="text-sm leading-relaxed space-y-1">
+          <p class="text-text-light-secondary dark:text-dark-secondary">표적 미식별 — 접촉 없음</p>
+        </div>
+      </div>
+
       <h2 class="text-base font-bold mb-3 flex items-center gap-2"><span class="material-icons text-primary">radar</span> 실시간 추적 결과</h2>
 
       <!-- 요약 카드 -->
@@ -105,10 +122,12 @@
     <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-2">
       <div>
         <label class="text-xs font-medium">Stage1 모드</label>
-        <select id="pp-mode" class="w-full mt-1 px-2 py-1.5 text-sm rounded border border-border-light dark:border-border-dark bg-background-light dark:bg-background-dark">
+        <select id="pp-mode" class="w-full mt-1 mb-2 px-2 py-1.5 text-sm rounded border border-border-light dark:border-border-dark bg-background-light dark:bg-background-dark">
           <option value="auto">auto (밝기 자동)</option><option value="fog">fog (항상 안개)</option>
           <option value="dark">dark (항상 저조도)</option><option value="none">none (끔)</option>
         </select>
+        <label class="text-xs font-medium">안개 제거 알고리즘</label>
+        <select id="pp-falgo" class="w-full mt-1 px-2 py-1.5 text-sm rounded border border-border-light dark:border-border-dark bg-background-light dark:bg-background-dark"></select>
         <div class="ctl-slider mt-2" data-key="dark_gain" data-min="0.1" data-max="3" data-step="0.05"></div>
       </div>
       <div>
@@ -116,14 +135,6 @@
         <select id="pp-qalgo" class="w-full mt-1 mb-2 px-2 py-1.5 text-sm rounded border border-border-light dark:border-border-dark bg-background-light dark:bg-background-dark"></select>
         <label class="text-xs font-medium">표적강조 알고리즘</label>
         <select id="pp-ealgo" class="w-full mt-1 px-2 py-1.5 text-sm rounded border border-border-light dark:border-border-dark bg-background-light dark:bg-background-dark"></select>
-      </div>
-    </div>
-    <div class="mt-2">
-      <label class="text-xs font-medium">안개 제거 밝기 구간 [하한 · 상한] (auto)</label>
-      <div class="flex items-center gap-3 mt-1">
-        <input id="pp-th-lo" type="range" min="0" max="255" step="1" class="flex-1">
-        <input id="pp-th-hi" type="range" min="0" max="255" step="1" class="flex-1">
-        <span id="pp-th-val" class="text-xs font-mono w-24 text-right">--</span>
       </div>
     </div>
     <div class="flex gap-3 mt-4">

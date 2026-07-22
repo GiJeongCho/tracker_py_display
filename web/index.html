@@ -17,6 +17,9 @@
       "border-light": "#d1d5db", "border-dark": "#333333",
       "text-light-primary": "#111827", "text-light-secondary": "#4b5563",
       "text-dark-primary": "#e5e7eb", "text-dark-secondary": "#9ca3af",
+      // 실제 사용 클래스(dark:text-dark-primary / dark:text-dark-secondary)가
+      // 참조하는 색상 키. 이게 없으면 다크 모드에서 글자색이 지정되지 않아 안 보인다.
+      "dark-primary": "#e5e7eb", "dark-secondary": "#9ca3af",
     }, fontFamily: { display: ["Nanum Gothic", "Roboto", "sans-serif"] } } },
   };
 </script>
@@ -54,6 +57,10 @@
         <button id="btn-analytics" title="분석·시각화" class="flex items-center px-3 py-3 rounded-lg text-text-light-secondary dark:text-dark-secondary hover:bg-gray-200 dark:hover:bg-gray-700 w-full transition-colors">
           <span class="material-icons flex-shrink-0">insights</span>
           <span class="sidebar-text ml-3 font-medium whitespace-nowrap opacity-100 transition-opacity duration-300 delay-100">분석·시각화</span>
+        </button>
+        <button id="btn-report" title="보고서" class="flex items-center px-3 py-3 rounded-lg text-text-light-secondary dark:text-dark-secondary hover:bg-gray-200 dark:hover:bg-gray-700 w-full transition-colors">
+          <span class="material-icons flex-shrink-0">assessment</span>
+          <span class="sidebar-text ml-3 font-medium whitespace-nowrap opacity-100 transition-opacity duration-300 delay-100">보고서</span>
         </button>
       </nav>
 
