@@ -12,6 +12,21 @@ let _speedThresh = 0.3;
 let _onStatus = null;
 const $ = (id) => document.getElementById(id);
 
+// 전처리 단계 on/off 상태(피드 버튼 노출 결정용). loadPreprocess 에서 갱신.
+const _stage = { mode: 'auto', fog: true, dark: true, stage2: true, stage3: false };
+
+// 현재 켜진 단계에 해당하는 피드만 노출한다("꺼지면 안보이게").
+//  - tracked/detect/original: 항상
+//  - stage1(노이즈제거): mode!=none 이고 (안개 또는 저조도)가 켜져 있을 때
+//  - stage2(화질향상): 화질향상 on
+//  - stage3(표적강조): 표적강조 on
+function _isFeedVisible(id) {
+  if (id === 'stage2') return _stage.stage2;
+  if (id === 'stage3') return _stage.stage3;
+  if (id === 'stage1') return _stage.mode !== 'none' && (_stage.fog || _stage.dark);
+  return true; // tracked / detect / original
+}
+
 function reloadFeeds() {
   const after = $('img-after');
   if (after) after.src = api.mjpeg(_feed);
@@ -29,7 +44,10 @@ function reloadFeeds() {
 function buildFeedButtons() {
   const wrap = $('feed-buttons');
   if (!wrap) return;
-  wrap.innerHTML = FEEDS.map(([id, label]) =>
+  const feeds = FEEDS.filter(([id]) => _isFeedVisible(id));
+  // 선택 중이던 피드가 숨겨지면 '추적 결과'로 되돌린다.
+  if (!feeds.some(([id]) => id === _feed)) _feed = 'tracked';
+  wrap.innerHTML = feeds.map(([id, label]) =>
     `<button class="feed-btn ${id === _feed ? 'active' : ''}" data-feed="${id}">${label}</button>`).join('');
   wrap.querySelectorAll('.feed-btn').forEach((b) => b.addEventListener('click', () => {
     _feed = b.dataset.feed;
@@ -54,6 +72,14 @@ async function loadPreprocess() {
     if ($('pp-mode') && s1.mode) $('pp-mode').value = s1.mode;
     const gain = $('ctl-dark_gain'); if (gain) gain.value = s1.dark_gain != null ? s1.dark_gain : 1.0;
     const gd = $('val-dark_gain'); if (gd && gain) gd.textContent = gain.value;
+    // 단계 상태 반영 → 피드 버튼 노출 갱신
+    _stage.mode = s1.mode || 'auto';
+    _stage.fog = s1.fog_enabled !== false;
+    _stage.dark = s1.dark_enabled !== false;
+    _stage.stage2 = Boolean(s1.stage2_enabled);
+    _stage.stage3 = Boolean(s1.stage3_enabled);
+    buildFeedButtons();
+    reloadFeeds();
   } catch (e) { /* idle */ }
   try {
     const algos = await api.get('/api/preprocess/algorithms');
@@ -76,7 +102,22 @@ async function applyPreprocess() {
     quality_id: $('pp-qalgo').value || undefined,
     emphasis_id: $('pp-ealgo').value || undefined,
   });
-  setStatus('pp-status', (r1.ok && r2.ok) ? '전처리 적용 완료' : '일부 적용 실패', r1.ok && r2.ok);
+  // 단계 상태 갱신 → 피드 버튼 노출/영상 재로딩
+  _stage.mode = $('pp-mode').value;
+  _stage.fog = $('pp-fog').checked;
+  _stage.dark = $('pp-dark').checked;
+  _stage.stage2 = $('pp-stage2').checked;
+  _stage.stage3 = $('pp-stage3').checked;
+  buildFeedButtons();
+  reloadFeeds();
+
+  // 알고리즘 적용 실패(예: 필수 패키지 없음) 사유를 구체적으로 표시.
+  const errs = (r2.data && r2.data.errors) || {};
+  const ok = r1.ok && r2.ok && Object.keys(errs).length === 0;
+  let msg = ok ? '전처리 적용 완료' : '일부 적용 실패';
+  const parts = Object.entries(errs).map(([k, v]) => `${k}: ${v}`);
+  if (parts.length) msg += ' — ' + parts.join(' / ');
+  setStatus('pp-status', msg, ok);
 }
 
 async function loadModels() {
